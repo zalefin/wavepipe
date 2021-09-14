@@ -2,7 +2,7 @@
 
 #define NSAMP 64
 
-#define RATE 44100
+#define RATE 22000
 
 static pa_simple *s = NULL;
 static const pa_sample_spec ss = {
