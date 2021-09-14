@@ -10,9 +10,11 @@
 
 #include "parec.h"
 
-uint8_t rdy;
+uint8_t rdy = 0;
+uint8_t running = 0;
 pthread_mutex_t samples_buf_access;
 pthread_t pa_thread;
+pthread_t listen_stop_thread;
 int sockfd;
 
 int16_t samples_buffer[NSAMP];
@@ -20,16 +22,26 @@ char cmd[10];
 
 void *pa_main() {
     pain_init();
-    while (1) {
+    while (running) {
         if (!rdy) {
             pthread_mutex_lock(&samples_buf_access);
             pain_read(samples_buffer, NSAMP);
             rdy = 1;
             pthread_mutex_unlock(&samples_buf_access);
         }
-
     }
 
+    return 0;
+}
+
+void *listen_stop() {
+    while (strcmp(cmd, "CLOSE")) {
+        bzero(cmd, 10);
+        recvfrom(sockfd, cmd, 10, 0, NULL, NULL);
+        /* printf("%d\n", nrecv); */
+        printf("recv: %s\n", cmd);
+    }
+    running = 0;
     return 0;
 }
 
@@ -57,11 +69,14 @@ int main() {
         printf("recv: %s\n", cmd);
     }
 
+    running = 1;
+
     rdy = 0; // init ready to false
     pthread_mutex_init(&samples_buf_access, 0); // init access mutex
     pthread_create(&pa_thread, NULL, pa_main, NULL);
+    pthread_create(&listen_stop_thread, NULL, listen_stop, NULL);
 
-    while (1) {
+    while (running) {
         if (rdy) {
             // BEGIN critical section
             pthread_mutex_lock(&samples_buf_access);
@@ -73,6 +88,10 @@ int main() {
         }
     }
 
+    pthread_join(pa_thread, NULL);
+    pthread_join(listen_stop_thread, NULL);
+
+    printf("closing...\n");
 
 
 finish:
